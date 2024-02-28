@@ -2,7 +2,6 @@ package main
 
 import (
 	"bytes"
-	"context"
 	"database/sql"
 	"fmt"
 	"log"
@@ -16,14 +15,22 @@ var server = "118.31.103.239"
 var port = 1433
 var user = "sa"
 var password = "aabbcc1228.."
-var database = "ZLBase"
+
+var database = "QPBase"
+
+// var database = "QPTreasureDB"
 var table = "sys_activity_switch"
 var tableDesc = "活动开关配置"
 
 type EntityInfo struct {
 	TableName string
 	TableDesc string
-	FieldMap  map[string]string
+	Fields    []*FieldInfo
+}
+type FieldInfo struct {
+	Name string
+	Type string
+	Desc string
 }
 
 func main() {
@@ -38,17 +45,33 @@ func main() {
 	}
 	defer db.Close()
 
-	ctx := context.Background()
-	query := "SELECT COLUMN_NAME, DATA_TYPE FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = @tableName"
-	rows, err := db.QueryContext(ctx, query, sql.Named("tableName", table))
+	// ctx := context.Background()
+	// query := "SELECT COLUMN_NAME, DATA_TYPE FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = @tableName"
+
+	query := fmt.Sprintf(`SELECT   
+	 col.name AS columnName ,  
+	 ISNULL(ep.[value], '') AS columnDesc ,  
+	 t.name AS dataType    
+FROM    dbo.syscolumns col  
+	 LEFT  JOIN dbo.systypes t ON col.xtype = t.xusertype  
+	 inner JOIN dbo.sysobjects obj ON col.id = obj.id  
+									  AND obj.xtype = 'U'  
+									  AND obj.status >= 0  
+	 LEFT  JOIN dbo.syscomments comm ON col.cdefault = comm.id  
+	 LEFT  JOIN sys.extended_properties ep ON col.id = ep.major_id  
+												   AND col.colid = ep.minor_id  
+												   AND ep.name = 'MS_Description'   
+WHERE   obj.name = '%s'
+ORDER BY col.colorder  `, table)
+	rows, err := db.Query(query)
 	if err != nil {
 		log.Fatal(err)
 	}
 	defer rows.Close()
-	fieldMap := make(map[string]string)
+	fieldInfos := make([]*FieldInfo, 0)
 	for rows.Next() {
-		var columnName, dataType string
-		err := rows.Scan(&columnName, &dataType)
+		var columnName, columnDesc, dataType string
+		err := rows.Scan(&columnName, &columnDesc, &dataType)
 		if err != nil {
 			log.Fatal(err)
 		}
@@ -67,9 +90,13 @@ func main() {
 			goType = "interface{}"
 		}
 
-		fieldMap[columnName] = goType
+		fieldInfos = append(fieldInfos, &FieldInfo{
+			Name: columnName,
+			Desc: columnDesc,
+			Type: goType,
+		})
 	}
-	entityInfo.FieldMap = fieldMap
+	entityInfo.Fields = fieldInfos
 	entityInfo.GenerateModel()
 	entityInfo.GenerateLogic()
 	entityInfo.GenerateParam()
@@ -276,11 +303,11 @@ func (e *EntityInfo) GenerateParam() {
 
 	buffer.WriteString(fmt.Sprintf("// Post%sReq 请求-添加%s\n", entityName, e.TableDesc))
 	buffer.WriteString(fmt.Sprintf("type Post%sReq struct{\n", entityName))
-	for k, v := range e.FieldMap {
-		if e.FilterField(k) {
+	for _, v := range e.Fields {
+		if e.FilterField(v.Name) {
 			continue
 		}
-		buffer.WriteString(fmt.Sprintf("\t%s %s  `json:\"%s\" binding:\"required\"`\n", getFieldName1(k), v, getFieldName2(k)))
+		buffer.WriteString(fmt.Sprintf("\t%s %s  `json:\"%s\" binding:\"required\"` // %s\n", getFieldName1(v.Name), v.Type, getFieldName2(v.Name), v.Desc))
 	}
 	buffer.WriteString("}\n\n")
 
@@ -290,11 +317,11 @@ func (e *EntityInfo) GenerateParam() {
 
 	buffer.WriteString(fmt.Sprintf("// Patch%sReq 请求-更新%s\n", entityName, e.TableDesc))
 	buffer.WriteString(fmt.Sprintf("type Patch%sReq struct{\n", entityName))
-	for k, v := range e.FieldMap {
-		if e.FilterField(k) {
+	for _, v := range e.Fields {
+		if e.FilterField(v.Name) {
 			continue
 		}
-		buffer.WriteString(fmt.Sprintf("\t%s *%s  `json:\"%s\" binding:\"required\"`\n", getFieldName1(k), v, getFieldName2(k)))
+		buffer.WriteString(fmt.Sprintf("\t%s *%s  `json:\"%s\" binding:\"\"` // %s\n", getFieldName1(v.Name), v.Type, getFieldName2(v.Name), v.Desc))
 	}
 	buffer.WriteString("}\n\n")
 
@@ -354,11 +381,11 @@ func (e *EntityInfo) GenerateLogic() {
 	`, entityName, tableDesc, entityName, entityName, entityName, e.TableName, entityName, entityName, entityName))
 
 	addEntityItemsStr := ""
-	for k, _ := range e.FieldMap {
-		if e.FilterField(k) {
+	for _, v := range e.Fields {
+		if e.FilterField(v.Name) {
 			continue
 		}
-		addEntityItemsStr += fmt.Sprintf("%s:req.%s, \n", getFieldName1(k), getFieldName1(k))
+		addEntityItemsStr += fmt.Sprintf("%s:req.%s, \n", getFieldName1(v.Name), getFieldName1(v.Name))
 	}
 
 	//添加方法
@@ -395,15 +422,15 @@ func logicAdd%s(reqUserId int32, req *Post%sReq) (*Post%sResp, error) {
 	))
 
 	updateEntityItemsStr := ""
-	for k, v := range e.FieldMap {
-		if e.FilterField(k) {
+	for _, v := range e.Fields {
+		if e.FilterField(v.Name) {
 			continue
 		}
-		if v == "string" {
-			updateEntityItemsStr += fmt.Sprintf(`util.UpdateFieldWithString(updateItems, "%s", req.%s, item.%s)`, k, getFieldName1(k), getFieldName1(k))
+		if v.Type == "string" {
+			updateEntityItemsStr += fmt.Sprintf(`util.UpdateFieldWithString(updateItems, "%s", req.%s, item.%s)`, v.Name, getFieldName1(v.Name), getFieldName1(v.Name))
 			updateEntityItemsStr += "\n"
 		} else {
-			updateEntityItemsStr += fmt.Sprintf(`util.UpdateFieldWithInt32(updateItems, "%s", req.%s, item.%s)`, k, getFieldName1(k), getFieldName1(k))
+			updateEntityItemsStr += fmt.Sprintf(`util.UpdateFieldWithInt32(updateItems, "%s", req.%s, item.%s)`, v.Name, getFieldName1(v.Name), getFieldName1(v.Name))
 			updateEntityItemsStr += "\n"
 		}
 
@@ -488,8 +515,8 @@ func (e *EntityInfo) GenerateModel() {
 	buffer.WriteString("\n\n")
 	buffer.WriteString(fmt.Sprintf("type %s struct {\n", entityName))
 
-	for k, v := range e.FieldMap {
-		buffer.WriteString(fmt.Sprintf("\t%s %s  `gorm:\"column:%s\" json:\"%s\"`\n", getFieldName1(k), v, k, getFieldName2(k)))
+	for _, v := range e.Fields {
+		buffer.WriteString(fmt.Sprintf("\t%s %s  `gorm:\"column:%s\" json:\"%s\"` //%s\n", getFieldName1(v.Name), v.Type, v.Name, getFieldName2(v.Name), v.Desc))
 	}
 
 	buffer.WriteString("}\n\n")
