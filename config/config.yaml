@@ -1,0 +1,29 @@
+debugMode: true #是否开启调试模式
+
+#redis配置
+redis:
+  addr: "118.31.103.239:6379"
+  password: "aabbcc1228.."
+  db: 12 
+
+#日志配置
+access:
+  logPath: "./logs/" #日志文件的存储路径
+  logLevel: 0 #日志的级别: 0-Debug, 1-Info, 2-Warn, 3-Error; 正式部署设置1~3级
+  maxSize: 64 #在进行切割之前，日志文件的最大大小（以MB为单位）
+  maxAge: 31 #保留旧文件的最大天数
+  maxBackups: 10 #保留旧文件的最大个数
+  outputFile: true #日志输出到文件中, 则否打印到控制台
+  stackTrace: false #是否显示调用堆栈
+  compress: true #是否压缩/归档旧文件
+
+#日志配置
+log:
+  logPath: "./logs/" #日志文件的存储路径
+  logLevel: 0 #日志的级别: 0-Debug, 1-Info, 2-Warn, 3-Error; 正式部署设置1~3级
+  maxSize: 64 #在进行切割之前，日志文件的最大大小（以MB为单位）
+  maxAge: 31 #保留旧文件的最大天数
+  maxBackups: 10 #保留旧文件的最大个数
+  outputFile: true #日志输出到文件中, 则否打印到控制台
+  stackTrace: false #是否显示调用堆栈
+  compress: true #是否压缩/归档旧文件

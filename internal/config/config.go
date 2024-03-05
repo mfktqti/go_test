@@ -14,8 +14,8 @@ var (
 )
 
 func init() {
-	flag.StringVar(&localConfigFile, "c", "./config/config.yaml", "init local config")
-	// flag.StringVar(&localConfigFile, "c", "../../../config/config.yaml", "init local config")
+	// flag.StringVar(&localConfigFile, "c", "./config/config.yaml", "init local config")
+	flag.StringVar(&localConfigFile, "c", "../../config/config.yaml", "init local config")
 }
 
 // LoadConfig 加载本地配置文件
@@ -51,11 +51,8 @@ type LogConfig struct {
 
 // Config 配置
 type Config struct {
-
-	// Etcd  *EtcdConfig  `yaml:"etcd"`
-	Mysql *MysqlConfig `yaml:"mysql"`
-	// Redis *RedisConfig `yaml:"redis"`
-	Log *LogConfig `yaml:"log"`
+	Redis *RedisConfig `yaml:"redis"`
+	Log   *LogConfig   `yaml:"log"`
 }
 
 // MysqlConfig 配置项
@@ -70,12 +67,9 @@ type MysqlConfig struct {
 
 // RedisConfig 配置项
 type RedisConfig struct {
-	Addr        string `yaml:"addr"`
-	Db          int    `yaml:"db"`
-	Password    string `yaml:"password"`
-	MaxActive   int    `yaml:"maxActive"`
-	MaxIdle     int    `yaml:"maxIdle"`
-	IdleTimeout int    `yaml:"idleTimeout"`
+	Addr     string `yaml:"addr"`
+	Password string `yaml:"password"`
+	Db       int    `yaml:"db"`
 }
 
 // EtcdConfig 配置项
