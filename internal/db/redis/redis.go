@@ -3,6 +3,7 @@ package redis
 import (
 	"context"
 	"errors"
+	"fmt"
 	"go-test/internal/config"
 	"go-test/internal/log"
 	"strconv"
@@ -207,4 +208,39 @@ func ZScore(key, idStr string) (string, error) {
 // NewLock 获取分布式锁
 func NewLock(key string) *redsync.Mutex {
 	return rs.NewMutex(key)
+}
+
+// NewDistributedLock 获取分布式锁
+func NewDistributedLock() *DistributedLock {
+	return &DistributedLock{
+		rs: rs,
+	}
+}
+
+func (dl *DistributedLock) Lock(resource string) error {
+	mutex := dl.rs.NewMutex(resource, redsync.WithExpiry(20*time.Second))
+	if err := mutex.Lock(); err != nil {
+		return fmt.Errorf("failed to acquire lock: %w", err)
+	}
+	dl.mutex = mutex
+	dl.locked = true
+	return nil
+}
+
+func (dl *DistributedLock) Unlock() error {
+	if !dl.locked {
+		return nil
+	}
+
+	if ok, err := dl.mutex.Unlock(); err != nil || !ok {
+		return fmt.Errorf("failed to release lock: %w", err)
+	}
+	dl.locked = false
+	return nil
+}
+
+type DistributedLock struct {
+	rs     *redsync.Redsync
+	mutex  *redsync.Mutex
+	locked bool
 }

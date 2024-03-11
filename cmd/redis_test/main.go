@@ -5,6 +5,7 @@ import (
 	"go-test/internal/config"
 	"go-test/internal/db/redis"
 	"go-test/internal/log"
+	"time"
 )
 
 func main() {
@@ -60,5 +61,28 @@ func main() {
 	fmt.Println(redis.ZRevRangeWithScores("zset1", 1, 2))
 	fmt.Println(redis.ZScore("zset1", "110"))
 	fmt.Println(redis.ZRank("zset1", "111"))
+	fmt.Printf("\"-----------\": %v\n", "-----------")
+	// for i := 1; i <= 10; i++ {
+	// 	go func(i int) {
+	redisLock := redis.NewDistributedLock()
+	err = redisLock.Lock("my-lock")
+	if err != nil {
+		fmt.Printf("Lock err: %v\n", err)
+		return
+	}
+	fmt.Printf("\"lock\": %v\n", "go")
+	time.Sleep(15 * time.Second)
+	err = redisLock.Unlock()
+	if err != nil {
+		fmt.Printf("Unlock err: %v\n", err)
+		return
+	}
+	// fmt.Printf("i: %v\n", i)
+
+	// 	}(i)
+	// }
+
+	// time.Sleep(20 * time.Second)
+	fmt.Printf("\"go\": %v\n", "go")
 
 }
